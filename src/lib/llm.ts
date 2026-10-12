@@ -27,7 +27,7 @@ export async function chatJson<T>(
   if (!cfg.apiKey) throw new LlmError("No LLM API key configured (set GROQ_API_KEY).");
 
   let lastError = "";
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; attempt < 6; attempt++) {
     const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${cfg.apiKey}` },
@@ -42,8 +42,9 @@ export async function chatJson<T>(
 
     if (res.status === 429 || res.status >= 500) {
       lastError = `${res.status}`;
-      const wait = Number(res.headers.get("retry-after")) || 2 ** attempt * 2;
-      await new Promise((r) => setTimeout(r, Math.min(wait, 20) * 1000));
+      // Free tiers are per-minute token buckets: wait for the bucket to refill instead of failing.
+      const wait = Number(res.headers.get("retry-after")) || parseDuration(res.headers.get("x-ratelimit-reset-tokens")) || 2 ** attempt * 2;
+      await new Promise((r) => setTimeout(r, Math.min(wait + 1, 60) * 1000));
       continue;
     }
     if (!res.ok) {
@@ -61,4 +62,12 @@ export async function chatJson<T>(
     }
   }
   throw new LlmError(`LLM call failed after retries (${lastError}).`);
+}
+
+/** Parses Groq/OpenAI reset headers like "9.07s", "1m2.5s" or "450ms" into seconds. */
+function parseDuration(v: string | null): number {
+  if (!v) return 0;
+  const m = /^(?:(d+)m)?(?:([d.]+)s)?(?:([d.]+)ms)?$/.exec(v.trim());
+  if (!m) return 0;
+  return Number(m[1] ?? 0) * 60 + Number(m[2] ?? 0) + Number(m[3] ?? 0) / 1000;
 }

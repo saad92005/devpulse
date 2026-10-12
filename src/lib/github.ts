@@ -122,8 +122,8 @@ const CODE_EXT = /\.(ts|tsx|js|jsx|mjs|cjs|py|go|rb|php|java|kt|cs|rs|swift|c|cc
 const SKIP_PATH = /(^|\/)(node_modules|vendor|dist|build|out|\.next|coverage|__pycache__|\.git|migrations|fixtures|__snapshots__)\//i;
 const SKIP_FILE = /(\.min\.|\.d\.ts$|\.lock$|-lock\.|\.generated\.|\.test\.|\.spec\.)/i;
 const PRIORITY = /(^|\/)(src|app|lib|api|server|routes|controllers|services|pages|handlers)\//i;
-export const SCAN_MAX_FILES = 15;
-const SCAN_MAX_BYTES = 60_000;
+export const SCAN_MAX_FILES = 12;
+const SCAN_MAX_BYTES = 36_000;
 
 /** Picks the most review-worthy source files on the default branch and returns them as all-added "patches". */
 export async function fetchRepoSnapshot(gh: Octokit, owner: string, repo: string) {
@@ -134,7 +134,7 @@ export async function fetchRepoSnapshot(gh: Octokit, owner: string, repo: string
   const { data: tree } = await gh.git.getTree({ owner, repo, tree_sha: sha, recursive: "true" });
 
   const candidates = tree.tree
-    .filter((t) => t.type === "blob" && t.path && t.size && t.size > 120 && t.size < 20_000)
+    .filter((t) => t.type === "blob" && t.path && t.size && t.size > 120 && t.size < 12_000)
     .filter((t) => CODE_EXT.test(t.path!) && !SKIP_PATH.test(t.path!) && !SKIP_FILE.test(t.path!))
     .sort((a, b) => Number(PRIORITY.test(b.path!)) - Number(PRIORITY.test(a.path!)) || b.size! - a.size!);
 

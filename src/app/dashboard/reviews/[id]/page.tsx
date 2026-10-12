@@ -7,6 +7,8 @@ import { getReview } from "@/lib/queries";
 import { getSession } from "@/lib/session";
 import { FindingsPanel, LiveRefresh, RerunButton } from "./client";
 
+export const maxDuration = 300;
+
 export default async function ReviewPage({ params }: PageProps<"/dashboard/reviews/[id]">) {
   const id = Number((await params).id);
   if (!Number.isInteger(id)) notFound();

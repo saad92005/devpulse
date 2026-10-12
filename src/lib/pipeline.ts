@@ -131,7 +131,8 @@ export async function runScan(reviewId: number, job: ScanJob) {
         title: `Full repository scan of ${job.repo.fullName} (${snap.files.length} of ${snap.totalCandidates} source files)`,
         description: "This is not a pull request: every line shown is existing code on the default branch. Review it as a codebase audit.",
       },
-      (stage) => void setStage(reviewId, stage),
+      (stage, detail) => void setStage(reviewId, detail ? `${stage} · ${detail}` : stage),
+      { concurrency: 1, batchChars: 9_000, maxTokens: 3_000 },
     );
     const kept = result.findings.filter((f) => f.kept).length;
     await db`

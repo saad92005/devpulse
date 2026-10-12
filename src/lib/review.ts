@@ -78,13 +78,13 @@ KEEP only if a competent engineer reading the excerpt would agree it is a real p
 You may lower the severity if it is overstated (never raise it).
 Respond with JSON only: {"verdicts":[{"id":0,"keep":true,"severity":"critical|high|medium|low","reason":"one sentence"}]}`;
 
-function batchFiles(files: FilePatch[]): FilePatch[][] {
+function batchFiles(files: FilePatch[], maxChars = MAX_BATCH_CHARS): FilePatch[][] {
   const batches: FilePatch[][] = [];
   let current: FilePatch[] = [];
   let size = 0;
   for (const f of files) {
     const len = renderForModel(f).length;
-    if (current.length && size + len > MAX_BATCH_CHARS) {
+    if (current.length && size + len > maxChars) {
       batches.push(current);
       current = [];
       size = 0;
@@ -135,6 +135,8 @@ export async function reviewDiff(
   config: RepoConfig,
   context: { title?: string; description?: string } = {},
   onProgress?: ReviewProgress,
+  /** Large inputs (repository scans) use smaller sequential batches to stay inside free-tier token-per-minute limits. */
+  tuning: { concurrency?: number; batchChars?: number; maxTokens?: number } = {},
 ): Promise<ReviewResult> {
   const started = Date.now();
   const cfg = llmConfig();
@@ -193,7 +195,7 @@ export async function reviewDiff(
           { role: "system", content: CHECKER_SYSTEM },
           { role: "user", content: payload },
         ],
-        { model: cfg.checkerModel, temperature: 0 },
+        { model: cfg.checkerModel, temperature: 0, maxTokens: tuning.maxTokens },
       );
       const verdicts = new Map((res.verdicts ?? []).map((v) => [Number(v.id), v]));
       candidates.forEach((f, id) => {

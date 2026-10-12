@@ -9,6 +9,8 @@ import { listRepos, listReviews } from "@/lib/queries";
 import { getSession } from "@/lib/session";
 import { OpenPulls, ScanButton } from "./client";
 
+export const maxDuration = 300;
+
 export default async function RepoPage({ params }: PageProps<"/dashboard/repos/[owner]/[repo]">) {
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
