@@ -2,7 +2,7 @@ import "server-only";
 import { parseConfig } from "./config";
 import { sql } from "./db";
 import { appUrl } from "./env";
-import { fetchPullFiles, fetchRepoConfig, installationOctokit, postReview, reviewBody } from "./github";
+import { fetchPullFiles, fetchRepoConfig, fetchRepoSnapshot, installationOctokit, postReview, reviewBody } from "./github";
 import { reviewDiff } from "./review";
 
 export type PullRequestJob = {
@@ -92,6 +92,61 @@ export async function runReview(reviewId: number, job: PullRequestJob) {
     }
   } catch (e) {
     console.error(`[devpulse] review ${reviewId} failed`, e);
+    await db`UPDATE reviews SET status = 'failed', stage = NULL, error = ${(e as Error).message.slice(0, 500)}, completed_at = now() WHERE id = ${reviewId}`;
+  }
+}
+
+/* ------------------------------------------------------ Repository scan */
+
+export type ScanJob = { installationId: number; repo: { id: number; fullName: string } };
+
+/** Scans are stored as reviews with pr_number = 0. Results stay in the dashboard; nothing is posted to GitHub. */
+export async function enqueueScan(job: ScanJob): Promise<number> {
+  const rows = await sql()`
+    INSERT INTO reviews (repo_id, repo_full_name, pr_number, pr_title, pr_author, pr_url, head_sha, trigger, status, stage)
+    VALUES (${job.repo.id}, ${job.repo.fullName}, 0, 'Repository scan', NULL, ${`https://github.com/${job.repo.fullName}`},
+            'pending', ${`scan:${Date.now()}`}, 'running', 'fetching')
+    RETURNING id`;
+  return rows[0].id;
+}
+
+export async function runScan(reviewId: number, job: ScanJob) {
+  const db = sql();
+  const [owner, repo] = job.repo.fullName.split("/");
+  try {
+    const gh = installationOctokit(job.installationId);
+    const snap = await fetchRepoSnapshot(gh, owner, repo);
+    await db`UPDATE reviews SET head_sha = ${snap.sha}, pr_title = ${`Repository scan · ${snap.branch}`},
+               pr_url = ${`${snap.url}/tree/${snap.branch}`} WHERE id = ${reviewId}`;
+    if (!snap.files.length) {
+      await db`UPDATE reviews SET status = 'skipped', stage = NULL, error = 'No reviewable source files found on the default branch', completed_at = now() WHERE id = ${reviewId}`;
+      return;
+    }
+    const { config } = parseConfig(await fetchRepoConfig(gh, owner, repo, snap.branch));
+    const scanConfig = { ...config, max_comments: Math.max(config.max_comments, 25) };
+    const result = await reviewDiff(
+      snap.files,
+      scanConfig,
+      {
+        title: `Full repository scan of ${job.repo.fullName} (${snap.files.length} of ${snap.totalCandidates} source files)`,
+        description: "This is not a pull request: every line shown is existing code on the default branch. Review it as a codebase audit.",
+      },
+      (stage) => void setStage(reviewId, stage),
+    );
+    const kept = result.findings.filter((f) => f.kept).length;
+    await db`
+      UPDATE reviews SET status = 'completed', stage = NULL, summary = ${result.summary}, score = ${result.score},
+        files_reviewed = ${result.filesReviewed}, findings_raw = ${result.findings.length}, findings_kept = ${kept},
+        duration_ms = ${result.durationMs}, model = ${result.model}, completed_at = now()
+      WHERE id = ${reviewId}`;
+    for (const f of result.findings) {
+      await db`
+        INSERT INTO findings (review_id, path, line, severity, category, title, body, suggestion, confidence, kept, rejected_by, rejected_reason)
+        VALUES (${reviewId}, ${f.path}, ${f.line}, ${f.severity}, ${f.category}, ${f.title}, ${f.body},
+                ${f.suggestion ?? null}, ${f.confidence}, ${f.kept}, ${f.rejectedBy ?? null}, ${f.rejectedReason ?? null})`;
+    }
+  } catch (e) {
+    console.error(`[devpulse] scan ${reviewId} failed`, e);
     await db`UPDATE reviews SET status = 'failed', stage = NULL, error = ${(e as Error).message.slice(0, 500)}, completed_at = now() WHERE id = ${reviewId}`;
   }
 }

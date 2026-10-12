@@ -115,3 +115,50 @@ export async function exchangeCode(code: string): Promise<string> {
   if (!data.access_token) throw new Error(data.error_description ?? "GitHub login failed.");
   return data.access_token;
 }
+
+/* ------------------------------------------------------ Repository scan */
+
+const CODE_EXT = /\.(ts|tsx|js|jsx|mjs|cjs|py|go|rb|php|java|kt|cs|rs|swift|c|cc|cpp|h|hpp|scala|dart|vue|svelte|sql|sh)$/i;
+const SKIP_PATH = /(^|\/)(node_modules|vendor|dist|build|out|\.next|coverage|__pycache__|\.git|migrations|fixtures|__snapshots__)\//i;
+const SKIP_FILE = /(\.min\.|\.d\.ts$|\.lock$|-lock\.|\.generated\.|\.test\.|\.spec\.)/i;
+const PRIORITY = /(^|\/)(src|app|lib|api|server|routes|controllers|services|pages|handlers)\//i;
+export const SCAN_MAX_FILES = 15;
+const SCAN_MAX_BYTES = 60_000;
+
+/** Picks the most review-worthy source files on the default branch and returns them as all-added "patches". */
+export async function fetchRepoSnapshot(gh: Octokit, owner: string, repo: string) {
+  const { data: meta } = await gh.repos.get({ owner, repo });
+  const branch = meta.default_branch;
+  const { data: ref } = await gh.git.getRef({ owner, repo, ref: `heads/${branch}` });
+  const sha = ref.object.sha;
+  const { data: tree } = await gh.git.getTree({ owner, repo, tree_sha: sha, recursive: "true" });
+
+  const candidates = tree.tree
+    .filter((t) => t.type === "blob" && t.path && t.size && t.size > 120 && t.size < 20_000)
+    .filter((t) => CODE_EXT.test(t.path!) && !SKIP_PATH.test(t.path!) && !SKIP_FILE.test(t.path!))
+    .sort((a, b) => Number(PRIORITY.test(b.path!)) - Number(PRIORITY.test(a.path!)) || b.size! - a.size!);
+
+  const picked: typeof candidates = [];
+  let bytes = 0;
+  for (const c of candidates) {
+    if (picked.length >= SCAN_MAX_FILES) break;
+    if (bytes + c.size! > SCAN_MAX_BYTES) continue;
+    picked.push(c);
+    bytes += c.size!;
+  }
+
+  const files: FilePatch[] = await Promise.all(
+    picked.map(async (t) => {
+      const { data } = await gh.git.getBlob({ owner, repo, file_sha: t.sha! });
+      const text = Buffer.from(data.content, "base64").toString("utf8").replace(/\r\n/g, "\n").replace(/\n$/, "");
+      const lines = text.split("\n");
+      return parsePatch(t.path!, `@@ -0,0 +1,${lines.length} @@\n` + lines.map((l) => "+" + l).join("\n"), "added");
+    }),
+  );
+  return { files, branch, sha, url: meta.html_url, private: meta.private, totalCandidates: candidates.length };
+}
+
+export async function listOpenPulls(gh: Octokit, owner: string, repo: string) {
+  const { data } = await gh.pulls.list({ owner, repo, state: "open", per_page: 20, sort: "updated", direction: "desc" });
+  return data.map((p) => ({ number: p.number, title: p.title, author: p.user?.login ?? null, url: p.html_url, draft: Boolean(p.draft), updatedAt: p.updated_at }));
+}

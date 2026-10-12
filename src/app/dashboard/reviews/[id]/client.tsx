@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { Loader2, RotateCw, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
-import { rerunReview } from "@/app/dashboard/actions";
+import { rerunReview, scanRepo } from "@/app/dashboard/actions";
 import { FindingCard, type UiFinding } from "@/components/findings";
 import { cn } from "@/components/ui";
 
@@ -26,7 +26,7 @@ export function RerunButton({ repo, pr, disabled }: { repo: string; pr: number; 
       disabled={disabled || pending}
       onClick={() =>
         start(async () => {
-          const res = await rerunReview(repo, pr);
+          const res = pr > 0 ? await rerunReview(repo, pr) : await scanRepo(repo);
           if (!res.ok) toast.error(res.error ?? "Couldn't start a review");
           else {
             toast.success("Review started");

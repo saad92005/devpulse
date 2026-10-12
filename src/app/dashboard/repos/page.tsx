@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Lock } from "lucide-react";
+import { ArrowUpRight, ExternalLink, Lock } from "lucide-react";
 import { RepoToggle } from "@/components/repo-toggle";
 import { timeAgo } from "@/components/review-list";
 import { Button, ScoreRing } from "@/components/ui";
@@ -19,9 +19,9 @@ export default async function ReposPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Repositories</h1>
-          <p className="mt-1 text-sm text-muted">Health is the average score of completed reviews.</p>
+          <p className="mt-1 text-sm text-muted">Open a repository to scan the whole codebase or review its open pull requests.</p>
         </div>
-        {install && <Button href={install} size="sm" variant="secondary">Manage on GitHub</Button>}
+        {install && <Button href={install} size="sm" variant="secondary">Add repositories <ExternalLink size={13} /></Button>}
       </div>
 
       {repos.length === 0 ? (
@@ -36,7 +36,7 @@ export default async function ReposPage() {
                     {r.account_login}
                     {r.private && <Lock size={11} />}
                   </div>
-                  <div className="truncate font-semibold">{r.full_name.split("/")[1]}</div>
+                  <div className="flex items-center gap-1 truncate font-semibold">{r.full_name.split("/")[1]}<ArrowUpRight size={14} className="shrink-0 text-subtle transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-accent" /></div>
                 </Link>
                 <ScoreRing score={r.avg_score} size={52} stroke={5} />
               </div>

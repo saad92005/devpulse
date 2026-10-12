@@ -5,6 +5,7 @@ import { sql } from "./db";
 
 export type RepoRow = {
   id: string;
+  installation_id: string;
   full_name: string;
   private: boolean;
   enabled: boolean;
@@ -56,7 +57,7 @@ export type FindingRow = {
 
 export async function listRepos(uid: number) {
   return (await sql()`
-    SELECT r.id::text, r.full_name, r.private, r.enabled, i.account_login, i.avatar_url,
+    SELECT r.id::text, r.installation_id::text, r.full_name, r.private, r.enabled, i.account_login, i.avatar_url,
       COUNT(v.id)::int AS reviews,
       ROUND(AVG(v.score) FILTER (WHERE v.status = 'completed'))::int AS avg_score,
       MAX(v.created_at) AS last_review,

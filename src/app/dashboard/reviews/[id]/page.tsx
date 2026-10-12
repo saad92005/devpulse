@@ -33,11 +33,11 @@ export default async function ReviewPage({ params }: PageProps<"/dashboard/revie
           <div className="min-w-0 flex-1">
             <div className="text-sm text-muted">{r.repo_full_name}</div>
             <h1 className="mt-0.5 text-xl font-semibold tracking-tight sm:text-2xl">
-              {r.pr_title} <span className="font-mono text-base font-normal text-subtle">#{r.pr_number}</span>
+              {r.pr_title} {r.pr_number > 0 && <span className="font-mono text-base font-normal text-subtle">#{r.pr_number}</span>}
             </h1>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-subtle">
               {r.pr_author && <span>@{r.pr_author}</span>}
-              <span className="inline-flex items-center gap-1"><GitCommit size={12} />{r.head_sha.slice(0, 7)}</span>
+              <span className="inline-flex items-center gap-1"><GitCommit size={12} />{r.head_sha === "pending" ? "…" : r.head_sha.slice(0, 7)}</span>
               <span className="inline-flex items-center gap-1"><Clock size={12} />{timeAgo(r.created_at)}</span>
               {r.duration_ms && <span>{(r.duration_ms / 1000).toFixed(1)}s</span>}
               {r.files_reviewed !== null && <span className="inline-flex items-center gap-1"><FileCode2 size={12} />{r.files_reviewed} files</span>}
@@ -48,7 +48,7 @@ export default async function ReviewPage({ params }: PageProps<"/dashboard/revie
           <div className="flex gap-2">
             <RerunButton repo={r.repo_full_name} pr={r.pr_number} disabled={running} />
             <a href={r.pr_url} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-full border border-line-strong px-3 text-[13px] hover:border-fg/30">
-              PR <ExternalLink size={13} />
+              {r.pr_number > 0 ? "PR" : "Code"} <ExternalLink size={13} />
             </a>
           </div>
         </div>

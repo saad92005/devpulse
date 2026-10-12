@@ -20,7 +20,7 @@ export function ReviewList({ reviews, showRepo = true }: { reviews: ReviewRow[];
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="truncate text-[14.5px] font-medium">{r.pr_title}</span>
-                <span className="shrink-0 font-mono text-xs text-subtle">#{r.pr_number}</span>
+                <span className="shrink-0 font-mono text-xs text-subtle">{r.pr_number > 0 ? `#${r.pr_number}` : "scan"}</span>
               </div>
               <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-subtle">
                 {showRepo && <span className="text-muted">{r.repo_full_name}</span>}
