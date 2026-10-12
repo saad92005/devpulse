@@ -19,5 +19,8 @@ export function installUrl() {
 
 /** Vercel env vars often store the PEM with literal "\n". */
 export function privateKey() {
-  return (process.env.GITHUB_APP_PRIVATE_KEY ?? "").replace(/\\n/g, "\n");
+  const raw = (process.env.GITHUB_APP_PRIVATE_KEY ?? "").trim();
+  // Accept the PEM as-is, with escaped newlines, or base64-encoded (safest for env UIs/CLIs).
+  const pem = raw.startsWith("-----") ? raw : Buffer.from(raw, "base64").toString("utf8");
+  return pem.replace(/\\n/g, "\n");
 }
